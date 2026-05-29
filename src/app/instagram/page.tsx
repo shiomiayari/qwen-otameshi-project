@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
 
@@ -10,7 +10,7 @@ interface PassData {
   qrCodeUrl: string | null;
 }
 
-export default function InstagramComplete() {
+function InstagramCompleteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [passData, setPassData] = useState<PassData | null>(null);
@@ -111,5 +111,20 @@ export default function InstagramComplete() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function InstagramComplete() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gradient-to-b from-purple-50 to-pink-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mb-4"></div>
+          <p className="text-gray-500">読み込み中...</p>
+        </div>
+      </main>
+    }>
+      <InstagramCompleteContent />
+    </Suspense>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { Html5Qrcode } from "html5-qrcode";
 
 interface PassData {
   name: string;
@@ -11,7 +10,7 @@ interface PassData {
   qrCodeUrl: string | null;
 }
 
-export default function TwitterComplete() {
+function TwitterCompleteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [name] = useState(searchParams.get("name") || "");
@@ -19,7 +18,7 @@ export default function TwitterComplete() {
   const [passData, setPassData] = useState<PassData | null>(null);
   const [error, setError] = useState("");
   const [completed, setCompleted] = useState(false);
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+
 
   const xProfileUrl = "https://x.com";
 
@@ -193,5 +192,20 @@ export default function TwitterComplete() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function TwitterComplete() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gradient-to-b from-gray-50 to-black text-white flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-gray-900 rounded-2xl shadow-lg p-8 border border-gray-800 text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+          <p className="text-gray-400">読み込み中...</p>
+        </div>
+      </main>
+    }>
+      <TwitterCompleteContent />
+    </Suspense>
   );
 }
