@@ -1,16 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { addRegistration } from "./utils/storage";
 import { SnsUrls } from "./utils/types";
-
-interface MockOAuthModal {
-  isOpen: boolean;
-  service: "x" | "github" | "discord" | null;
-  serviceName: string;
-  defaultUsername: string;
-}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -19,8 +12,8 @@ export default function RegisterPage() {
   const [instagram, setInstagram] = useState("");
   const [portfolio, setPortfolio] = useState("");
 
-  // OAuth connected states
-  const [connectedX, setConnectedX] = useState<string | null>(null);
+  // OAuth & SNS states
+  const [xUsername, setXUsername] = useState(""); // manual input for X
   const [connectedGitHub, setConnectedGitHub] = useState<string | null>(null);
   const [connectedDiscord, setConnectedDiscord] = useState<string | null>(null);
 
@@ -28,54 +21,36 @@ export default function RegisterPage() {
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // OAuth Modal State
-  const [oauthModal, setOauthModal] = useState<MockOAuthModal>({
-    isOpen: false,
-    service: null,
-    serviceName: "",
-    defaultUsername: "",
-  });
-  const [oauthInput, setOauthInput] = useState("");
-  const [oauthLoading, setOauthLoading] = useState(false);
-
-  const openOAuth = (service: "x" | "github" | "discord") => {
-    const serviceName =
-      service === "x" ? "X (Twitter)" : service === "github" ? "GitHub" : "Discord";
-    // Generate a default handle based on name or random
-    const baseName = name.trim() ? name.replace(/\s+/g, "").toLowerCase() : "user";
-    const defaultUsername =
-      service === "discord"
-        ? `${baseName}#${Math.floor(1000 + Math.random() * 9000)}`
-        : `${baseName}_${service}`;
-
-    setOauthInput(defaultUsername);
-    setOauthModal({
-      isOpen: true,
-      service,
-      serviceName,
-      defaultUsername,
-    });
-  };
-
-  const handleAuthorize = () => {
-    setOauthLoading(true);
-    // Simulate API Authorization roundtrip
-    setTimeout(() => {
-      const handle = oauthInput.trim() || oauthModal.defaultUsername;
-      if (oauthModal.service === "x") {
-        setConnectedX(handle);
-      } else if (oauthModal.service === "github") {
-        setConnectedGitHub(handle);
-      } else if (oauthModal.service === "discord") {
-        setConnectedDiscord(handle);
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Validate origin if necessary (e.g. event.origin === window.location.origin)
+      const data = event.data;
+      if (data && data.type === "OAUTH_SUCCESS") {
+        if (data.service === "github") {
+          setConnectedGitHub(data.username);
+        } else if (data.service === "discord") {
+          setConnectedDiscord(data.username);
+        }
       }
-      setOauthLoading(false);
-      setOauthModal({ isOpen: false, service: null, serviceName: "", defaultUsername: "" });
-    }, 1200);
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  const openOAuth = (service: "github" | "discord") => {
+    const width = 600;
+    const height = 800;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    
+    window.open(
+      `/api/auth/${service}`,
+      `${service}_oauth`,
+      `width=${width},height=${height},top=${top},left=${left}`
+    );
   };
 
-  const handleDisconnect = (service: "x" | "github" | "discord") => {
-    if (service === "x") setConnectedX(null);
+  const handleDisconnect = (service: "github" | "discord") => {
     if (service === "github") setConnectedGitHub(null);
     if (service === "discord") setConnectedDiscord(null);
   };
@@ -102,8 +77,9 @@ export default function RegisterPage() {
       const cleanInsta = instagram.replace(/^@/, "").trim();
       snsUrls.instagram = `https://instagram.com/${cleanInsta}`;
     }
-    if (connectedX) {
-      snsUrls.x = `https://x.com/${connectedX}`;
+    if (xUsername.trim()) {
+      const cleanX = xUsername.replace(/^@/, "").trim();
+      snsUrls.x = `https://x.com/${cleanX}`;
     }
     if (connectedGitHub) {
       snsUrls.github = `https://github.com/${connectedGitHub}`;
@@ -225,42 +201,26 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                {/* X (Twitter) */}
-                <div className="flex items-center justify-between p-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center text-white border border-slate-800">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-slate-400">X (Twitter)</div>
-                      <div className="text-sm font-medium mt-0.5 text-white">
-                        {connectedX ? (
-                          <span className="text-sky-400">@{connectedX}</span>
-                        ) : (
-                          <span className="text-slate-600">未連携</span>
-                        )}
-                      </div>
+                {/* X (Twitter) - Manual Input */}
+                <div className="flex items-center gap-3 p-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-black flex items-center justify-center text-white border border-slate-800">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-slate-400">X (Twitter)</div>
+                    <div className="flex items-center mt-1">
+                      <span className="text-slate-500 mr-1 text-sm font-medium">@</span>
+                      <input
+                        type="text"
+                        value={xUsername}
+                        onChange={(e) => setXUsername(e.target.value)}
+                        placeholder="ユーザーネーム"
+                        className="w-full bg-transparent border-none p-0 focus:ring-0 focus:outline-none text-white text-sm placeholder-slate-700"
+                      />
                     </div>
                   </div>
-                  {connectedX ? (
-                    <button
-                      type="button"
-                      onClick={() => handleDisconnect("x")}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition"
-                    >
-                      解除
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => openOAuth("x")}
-                      className="px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 text-xs font-semibold rounded-lg border border-sky-500/20 transition"
-                    >
-                      連携する
-                    </button>
-                  )}
                 </div>
 
                 {/* GitHub */}
@@ -392,112 +352,6 @@ export default function RegisterPage() {
         </form>
       </div>
 
-      {/* Mock OAuth Modal Dialog */}
-      {oauthModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Overlay background */}
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" />
-          
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 relative z-10 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
-                  OAuth Authorization Request
-                </h3>
-              </div>
-              <button
-                onClick={() => setOauthModal({ isOpen: false, service: null, serviceName: "", defaultUsername: "" })}
-                className="text-slate-500 hover:text-slate-300 transition"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="text-center py-4">
-              {/* Service Logos */}
-              <div className="flex items-center justify-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center font-bold text-violet-400 text-lg shadow-inner">
-                  EP
-                </div>
-                <svg className="w-5 h-5 text-slate-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-                <div className="w-12 h-12 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center">
-                  {oauthModal.service === "x" && (
-                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                    </svg>
-                  )}
-                  {oauthModal.service === "github" && (
-                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z" />
-                    </svg>
-                  )}
-                  {oauthModal.service === "discord" && (
-                    <svg className="w-6 h-6 text-[#5865F2]" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.873-.894.077.077 0 0 1-.008-.128c.126-.093.252-.19.372-.287a.075.075 0 0 1 .077-.011c3.92 1.793 8.18 1.793 12.061 0a.073.073 0 0 1 .078.009c.12.099.246.195.373.289a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
-                    </svg>
-                  )}
-                </div>
-              </div>
-
-              <h2 className="text-lg font-bold text-white">
-                {oauthModal.serviceName} と連携しますか？
-              </h2>
-              <p className="text-xs text-slate-400 mt-2 max-w-xs mx-auto">
-                イベントパス作成のために、プロフィール情報（ユーザー名）を読み取ります。
-              </p>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <label className="block text-xs font-semibold text-slate-400">
-                連携するアカウントのユーザー名を入力してください:
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-3.5 text-slate-500 font-medium text-sm">
-                  {oauthModal.service === "discord" ? "" : "@"}
-                </span>
-                <input
-                  type="text"
-                  value={oauthInput}
-                  onChange={(e) => setOauthInput(e.target.value)}
-                  placeholder={oauthModal.defaultUsername}
-                  className="w-full pl-7 pr-4 py-3 bg-slate-950 border border-slate-850 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/50 text-white placeholder-slate-700 text-sm transition"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                disabled={oauthLoading}
-                onClick={() => setOauthModal({ isOpen: false, service: null, serviceName: "", defaultUsername: "" })}
-                className="flex-1 py-3 bg-slate-800 hover:bg-slate-750 disabled:opacity-50 text-slate-300 font-semibold rounded-xl text-sm transition"
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                disabled={oauthLoading}
-                onClick={handleAuthorize}
-                className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-800 disabled:text-slate-400 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center gap-2"
-              >
-                {oauthLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    認証中...
-                  </>
-                ) : (
-                  "連携を承認する"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
