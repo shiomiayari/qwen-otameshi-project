@@ -27,10 +27,14 @@ const saveCheckIns = (logs: CheckInLog[]) => {
 };
 
 // --- Custom synthesized "phon" sound using Web Audio API ---
+interface CustomWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
 const playChime = () => {
   if (typeof window === "undefined") return;
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioContext = window.AudioContext || (window as unknown as CustomWindow).webkitAudioContext;
     if (!AudioContext) return;
     const ctx = new AudioContext();
     
@@ -70,7 +74,7 @@ const playChime = () => {
 
 export default function ScanPage() {
   const router = useRouter();
-  const [logs, setLogs] = useState<CheckInLog[]>([]);
+  const [logs, setLogs] = useState<CheckInLog[]>(() => getCheckIns());
   const [isScanning, setIsScanning] = useState(false);
   const [scannerError, setScannerError] = useState("");
   
@@ -86,64 +90,6 @@ export default function ScanPage() {
 
   const activeModalRef = useRef(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
-
-  // Load initial logs
-  useEffect(() => {
-    setLogs(getCheckIns());
-  }, []);
-
-  // Initialize camera scanner
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const scannerId = "reader";
-    let html5QrCode: Html5Qrcode | null = null;
-
-    const startScanner = async () => {
-      try {
-        html5QrCode = new Html5Qrcode(scannerId);
-        html5QrCodeRef.current = html5QrCode;
-
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: (width, height) => {
-              const size = Math.min(width, height) * 0.7;
-              return { width: size, height: size };
-            },
-          },
-          (decodedText) => {
-            handleScanSuccess(decodedText);
-          },
-          () => {
-            // Keep verbose log clean
-          }
-        );
-        setIsScanning(true);
-        setScannerError("");
-      } catch (err: any) {
-        console.error("Camera initialisation error:", err);
-        setScannerError("カメラの起動に失敗しました。権限を確認してください。");
-        setIsScanning(false);
-      }
-    };
-
-    startScanner();
-
-    return () => {
-      if (html5QrCode) {
-        if (html5QrCode.isScanning) {
-          html5QrCode
-            .stop()
-            .then(() => {
-              html5QrCode?.clear();
-            })
-            .catch((e) => console.error("Scanner cleanup error:", e));
-        }
-      }
-    };
-  }, []);
 
   // Handle successful QR scan
   const handleScanSuccess = (decodedText: string) => {
@@ -183,6 +129,60 @@ export default function ScanPage() {
     setScannedUser(newLog);
     setShowSuccessModal(true);
   };
+
+  // Initialize camera scanner
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const scannerId = "reader";
+    let html5QrCode: Html5Qrcode | null = null;
+
+    const startScanner = async () => {
+      try {
+        html5QrCode = new Html5Qrcode(scannerId);
+        html5QrCodeRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: (width, height) => {
+              const size = Math.min(width, height) * 0.7;
+              return { width: size, height: size };
+            },
+          },
+          (decodedText) => {
+            handleScanSuccess(decodedText);
+          },
+          () => {
+            // Keep verbose log clean
+          }
+        );
+        setIsScanning(true);
+        setScannerError("");
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error("Camera initialisation error:", errorMsg);
+        setScannerError("カメラの起動に失敗しました。権限を確認してください。");
+        setIsScanning(false);
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      if (html5QrCode) {
+        if (html5QrCode.isScanning) {
+          html5QrCode
+            .stop()
+            .then(() => {
+              html5QrCode?.clear();
+            })
+            .catch((e) => console.error("Scanner cleanup error:", e));
+        }
+      }
+    };
+  }, []);
 
   // Close success modal & resume scanning
   const closeSuccessModal = () => {

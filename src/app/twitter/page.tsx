@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { Html5Qrcode } from "html5-qrcode";
 
 interface PassData {
   name: string;
@@ -19,7 +18,7 @@ function TwitterCompleteContent() {
   const [passData, setPassData] = useState<PassData | null>(null);
   const [error, setError] = useState("");
   const [completed, setCompleted] = useState(false);
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+
 
   const xProfileUrl = "https://x.com";
 
