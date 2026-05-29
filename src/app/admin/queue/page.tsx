@@ -9,6 +9,7 @@ import {
   saveRegistrations,
 } from "../../utils/storage";
 import { generatePassCanvases, PassCard } from "../../utils/passGenerator";
+import { printPassCards } from "../../utils/printing";
 import { Registration } from "../../utils/types";
 
 export default function AdminQueuePage() {
@@ -65,33 +66,20 @@ export default function AdminQueuePage() {
       processedIdsRef.current.add(reg.id);
 
       addLog(`[Auto-Print] New registration detected: ${reg.name} (${reg.affiliation})`);
-      
-      // Update state in storage & locally
       updateRegistrationStatus(reg.id, "printed");
 
-      // Generate pass canvases and simulate printing
       generatePassCanvases(reg.name, reg.affiliation, reg.snsUrls, "dark")
         .then((cards) => {
           addLog(`[Spooler] Spooled ${cards.length} card(s) for ${reg.name}`);
-          
-          cards.forEach((card, idx) => {
-            setTimeout(() => {
-              addLog(`[Printer] PRINTING Card ${idx + 1}/${cards.length} for ${reg.name}...`);
-              
-              // Optionally trigger a real image download to test file output automatically
-              // triggerDownload(card, reg.name, idx);
-            }, (idx + 1) * 1000);
-          });
-
-          setTimeout(() => {
-            addLog(`[Printer] PRINT COMPLETE for ${reg.name}.`);
-            // Update local state to reflect change
-            setRegistrations(getRegistrations());
-          }, (cards.length + 1) * 1000);
+          return printPassCards(cards, reg.name);
+        })
+        .then(() => {
+          addLog(`[Printer] PRINT COMPLETE for ${reg.name}.`);
+          setRegistrations(getRegistrations());
         })
         .catch((err: unknown) => {
-          console.error("Auto print canvas generation failed:", err);
-          addLog(`[Error] Print failed for ${reg.name}: Canvas generation error`);
+          console.error("Auto print failed:", err);
+          addLog(`[Error] Print failed for ${reg.name}: ${String(err)}`);
         });
     });
   }, [registrations, autoPrint, isPrinterConnected]);
@@ -138,18 +126,14 @@ export default function AdminQueuePage() {
     generatePassCanvases(reg.name, reg.affiliation, reg.snsUrls, previewTheme)
       .then((cards) => {
         addLog(`[Spooler] Generated ${cards.length} page(s) for ${reg.name}`);
-        
-        cards.forEach((card, idx) => {
-          // Trigger actual browser downloads for manual printing
-          triggerDownload(card, reg.name, idx);
-          addLog(`[Printer] PRINTING page ${idx + 1}/${cards.length}... DONE`);
-        });
-        
+        return printPassCards(cards, reg.name);
+      })
+      .then(() => {
         addLog(`[Printer] Job finished for ${reg.name}.`);
       })
       .catch((err: unknown) => {
         console.error("Manual print failed:", err);
-        addLog(`[Error] Failed manual print for ${reg.name}`);
+        addLog(`[Error] Failed manual print for ${reg.name}: ${String(err)}`);
       });
   };
 
@@ -474,15 +458,26 @@ export default function AdminQueuePage() {
                     <div key={index} className="bg-slate-950 border border-slate-850 rounded-xl p-3 space-y-2">
                       <div className="flex justify-between items-center text-[10px] text-slate-500">
                         <span>Card {index + 1} of {previewCards.length}</span>
-                        <button
-                          onClick={() => triggerDownload(card, selectedRegistrant.name, index)}
-                          className="text-violet-400 hover:text-violet-300 font-bold transition flex items-center gap-1"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                          PNG保存
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => triggerDownload(card, selectedRegistrant.name, index)}
+                            className="text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-1"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            PNG保存
+                          </button>
+                          <button
+                            onClick={() => printPassCards([card], selectedRegistrant.name)}
+                            className="text-violet-400 hover:text-violet-300 font-bold transition flex items-center gap-1"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            印刷
+                          </button>
+                        </div>
                       </div>
                       <div className="border border-slate-850 rounded-lg overflow-hidden bg-slate-950 relative aspect-[600/380]">
                         <img
