@@ -16,6 +16,29 @@ const snsConfig = [
   { key: "custom", label: "Portfolio", iconColor: "#10B981", prefix: "" },
 ];
 
+/**
+ * Resolves the final URL to encode in the Discord QR code.
+ * Priority:
+ *   1. Already a discord:// deep-link → use as-is
+ *   2. Raw numeric Snowflake ID (18 digits) → wrap in discord:// deep-link
+ *   3. https://discord.com/users/<id> where <id> is numeric → extract and wrap
+ *   4. Anything else (legacy username string) → use the value as-is (https fallback)
+ */
+function resolveDiscordQrUrl(value: string): string {
+  // Already a discord:// deep link
+  if (value.startsWith("discord://")) return value;
+
+  // Raw numeric ID
+  if (/^\d+$/.test(value)) return `discord://-/users/${value}`;
+
+  // https://discord.com/users/<numeric-id>
+  const webProfileMatch = value.match(/discord\.com\/users\/(\d+)/);
+  if (webProfileMatch) return `discord://-/users/${webProfileMatch[1]}`;
+
+  // Legacy username string – return as-is for backwards compatibility
+  return value;
+}
+
 // Helper to load an image from a source URL
 const loadImage = (src: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
@@ -177,7 +200,8 @@ export async function generatePassCanvases(
       ctx.fillText(`${sns.label}: ${truncatedVal}`, 40, 285);
 
       // Right block: QR Code (x: 360, y: 90, w: 200, h: 200)
-      const qrDataUrl = await QRCode.toDataURL(sns.value, {
+      const qrValue1Card = sns.key === "discord" ? resolveDiscordQrUrl(sns.value) : sns.value;
+      const qrDataUrl = await QRCode.toDataURL(qrValue1Card, {
         width: 200,
         margin: 1,
         color: {
@@ -221,7 +245,8 @@ export async function generatePassCanvases(
       const sns2 = chunk[1];
 
       // Render QR 1
-      const qrDataUrl1 = await QRCode.toDataURL(sns1.value, {
+      const qrValue1 = sns1.key === "discord" ? resolveDiscordQrUrl(sns1.value) : sns1.value;
+      const qrDataUrl1 = await QRCode.toDataURL(qrValue1, {
         width: 170,
         margin: 1,
         color: { dark: "#000000", light: "#ffffff" },
@@ -246,7 +271,8 @@ export async function generatePassCanvases(
       ctx.fillText(truncatedVal1, 145, 356);
 
       // Render QR 2
-      const qrDataUrl2 = await QRCode.toDataURL(sns2.value, {
+      const qrValue2 = sns2.key === "discord" ? resolveDiscordQrUrl(sns2.value) : sns2.value;
+      const qrDataUrl2 = await QRCode.toDataURL(qrValue2, {
         width: 170,
         margin: 1,
         color: { dark: "#000000", light: "#ffffff" },

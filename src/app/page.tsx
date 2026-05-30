@@ -29,7 +29,8 @@ export default function RegisterPage() {
         if (data.service === "github") {
           setConnectedGitHub(data.username);
         } else if (data.service === "discord") {
-          setConnectedDiscord(data.username);
+          // discordId is an 18-digit numeric Snowflake ID
+          setConnectedDiscord(data.discordId || data.username);
         }
       }
     };
@@ -85,7 +86,13 @@ export default function RegisterPage() {
       snsUrls.github = `https://github.com/${connectedGitHub}`;
     }
     if (connectedDiscord) {
-      snsUrls.discord = `https://discord.com/users/${connectedDiscord}`;
+      // Use deep link scheme if the stored value is a numeric Snowflake ID.
+      // Fall back to the web profile URL for legacy username strings.
+      if (/^\d+$/.test(connectedDiscord)) {
+        snsUrls.discord = `discord://-/users/${connectedDiscord}`;
+      } else {
+        snsUrls.discord = `https://discord.com/users/${connectedDiscord}`;
+      }
     }
     if (portfolio.trim()) {
       let url = portfolio.trim();
@@ -273,7 +280,12 @@ export default function RegisterPage() {
                       <div className="text-xs font-semibold text-slate-400">Discord</div>
                       <div className="text-sm font-medium mt-0.5 text-white">
                         {connectedDiscord ? (
-                          <span className="text-indigo-400">{connectedDiscord}</span>
+                          <span className="text-indigo-400 flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            連携済み
+                          </span>
                         ) : (
                           <span className="text-slate-600">未連携</span>
                         )}
