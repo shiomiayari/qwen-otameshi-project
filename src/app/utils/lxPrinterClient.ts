@@ -1,10 +1,26 @@
 import { LXD02Printer, PrinterStatus } from "lx-printer/lx-d02";
 
+interface PrintJob {
+  id: string;
+  label: string;
+  canvasDataUrl: string;
+  resolve: () => void;
+  reject: (error: Error) => void;
+}
+
+export interface QueueJobInfo {
+  id: string;
+  label: string;
+}
+
 class PrinterClient {
   private static instance: PrinterClient;
   private printer: LXD02Printer | null = null;
   public status: PrinterStatus | null = null;
   private listeners: Array<(status: PrinterStatus) => void> = [];
+  private printQueue: PrintJob[] = [];
+  private isProcessingQueue: boolean = false;
+  private queueListeners: Array<(queue: QueueJobInfo[]) => void> = [];
 
   private constructor() {}
 
@@ -36,22 +52,84 @@ class PrinterClient {
       this.printer.disconnect();
       this.printer = null;
     }
+    while (this.printQueue.length > 0) {
+      const job = this.printQueue.shift();
+      job?.reject(new Error("Printer disconnected."));
+    }
+    this.isProcessingQueue = false;
+    this.notifyQueueListeners();
   }
 
-  public async printCanvas(canvasDataUrl: string): Promise<void> {
+  public getQueueInfo(): QueueJobInfo[] {
+    return this.printQueue.map((job) => ({ id: job.id, label: job.label }));
+  }
+
+  public cancelJob(id: string): void {
+    const index = this.printQueue.findIndex((job) => job.id === id);
+    if (index !== -1) {
+      const [job] = this.printQueue.splice(index, 1);
+      job.reject(new Error("Job cancelled by user"));
+      this.notifyQueueListeners();
+    }
+  }
+
+  public clearQueue(): void {
+    while (this.printQueue.length > 0) {
+      const job = this.printQueue.shift();
+      job?.reject(new Error("Queue cleared by user"));
+    }
+    this.notifyQueueListeners();
+  }
+
+  public async printCanvas(
+    canvasDataUrl: string,
+    options?: { id?: string; label?: string }
+  ): Promise<void> {
     if (!this.printer || !this.status?.isConnected) {
       throw new Error("Printer is not connected.");
     }
 
-    // Convert DataURL back to an HTMLImageElement to pass to lx-printer
-    const img = new Image();
-    img.src = canvasDataUrl;
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-    });
+    const id = options?.id || Math.random().toString(36).substring(2, 9);
+    const label = options?.label || "Unknown Job";
 
-    await this.printer.print(img, { density: 5 }); // Density defaults to 5 (good contrast)
+    return new Promise((resolve, reject) => {
+      this.printQueue.push({ id, label, canvasDataUrl, resolve, reject });
+      this.notifyQueueListeners();
+      this.processQueue();
+    });
+  }
+
+  private async processQueue() {
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
+
+    while (this.printQueue.length > 0) {
+      const job = this.printQueue.shift();
+      if (!job) break;
+
+      this.notifyQueueListeners();
+
+      try {
+        if (!this.printer || !this.status?.isConnected) {
+          throw new Error("Printer disconnected while in queue.");
+        }
+
+        // Convert DataURL back to an HTMLImageElement to pass to lx-printer
+        const img = new Image();
+        img.src = job.canvasDataUrl;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+
+        await this.printer.print(img, { density: 5 }); // Density defaults to 5 (good contrast)
+        job.resolve();
+      } catch (err) {
+        job.reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+
+    this.isProcessingQueue = false;
   }
 
   public subscribe(listener: (status: PrinterStatus) => void): () => void {
@@ -69,6 +147,21 @@ class PrinterClient {
     if (!this.status) return;
     for (const listener of this.listeners) {
       listener(this.status);
+    }
+  }
+
+  public subscribeQueue(listener: (queue: QueueJobInfo[]) => void): () => void {
+    this.queueListeners.push(listener);
+    listener(this.getQueueInfo());
+    return () => {
+      this.queueListeners = this.queueListeners.filter((l) => l !== listener);
+    };
+  }
+
+  private notifyQueueListeners() {
+    const info = this.getQueueInfo();
+    for (const listener of this.queueListeners) {
+      listener(info);
     }
   }
 }

@@ -12,7 +12,7 @@ import {
 } from "../../utils/storage";
 import { PassCard } from "../../utils/passGenerator";
 import { generateLxCanvases } from "../../utils/lxPassGenerator";
-import { lxPrinterClient } from "../../utils/lxPrinterClient";
+import { lxPrinterClient, QueueJobInfo } from "../../utils/lxPrinterClient";
 import { PrinterStatus } from "lx-printer/lx-d02";
 import { Registration } from "../../utils/types";
 
@@ -33,6 +33,7 @@ export default function AdminQueuePage() {
   const [previewCards, setPreviewCards] = useState<PassCard[]>([]);
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const isPrinterConnected = printerStatus?.isConnected ?? false;
+  const [queueJobs, setQueueJobs] = useState<QueueJobInfo[]>([]);
 
   // Monospace Console Logs
   const [logs, setLogs] = useState<string[]>(() => [
@@ -85,6 +86,14 @@ export default function AdminQueuePage() {
     return unsubscribe;
   }, []);
 
+  // 2.6 Listen to Queue Status
+  useEffect(() => {
+    const unsubscribe = lxPrinterClient.subscribeQueue((queue) => {
+      setQueueJobs([...queue]);
+    });
+    return unsubscribe;
+  }, []);
+
   // 3. Auto-Print Logic
   useEffect(() => {
     if (!autoPrint || !isPrinterConnected) return;
@@ -105,7 +114,9 @@ export default function AdminQueuePage() {
           addLog(`[Spooler] Spooled ${cards.length} card(s) for ${reg.name}`);
           for (let i = 0; i < cards.length; i++) {
             addLog(`[Printer] Printing card ${i + 1}/${cards.length}...`);
-            await lxPrinterClient.printCanvas(cards[i].canvasDataUrl);
+            await lxPrinterClient.printCanvas(cards[i].canvasDataUrl, {
+              label: `[Auto] ${reg.name} (${i + 1}/${cards.length})`
+            });
           }
         })
         .then(() => {
@@ -160,7 +171,9 @@ export default function AdminQueuePage() {
         addLog(`[Spooler] Generated ${cards.length} page(s) for ${reg.name}`);
         for (let i = 0; i < cards.length; i++) {
           addLog(`[Printer] Printing card ${i + 1}/${cards.length}...`);
-          await lxPrinterClient.printCanvas(cards[i].canvasDataUrl);
+          await lxPrinterClient.printCanvas(cards[i].canvasDataUrl, {
+            label: `[Manual] ${reg.name} (${i + 1}/${cards.length})`
+          });
         }
       })
       .then(() => {
@@ -535,8 +548,43 @@ export default function AdminQueuePage() {
         {/* Right Column: Console & Previews (5/12 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5 min-h-0">
           
+          {/* Print Queue Panel */}
+          <div className="bg-slate-900/40 border border-slate-850 rounded-3xl p-5 flex flex-col max-h-[180px] overflow-hidden">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-900 mb-3">
+              <h3 className="text-xs font-bold text-slate-400">印刷キュー ({queueJobs.length})</h3>
+              {queueJobs.length > 0 && (
+                <button
+                  onClick={() => lxPrinterClient.clearQueue()}
+                  className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[10px] font-bold rounded-lg transition"
+                >
+                  全てキャンセル
+                </button>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+              {queueJobs.length === 0 ? (
+                <p className="text-[10px] text-slate-500 text-center py-4">待機中のジョブはありません</p>
+              ) : (
+                queueJobs.map(job => (
+                  <div key={job.id} className="flex items-center justify-between bg-slate-950 border border-slate-850 p-2 rounded-xl">
+                    <span className="text-xs text-white truncate pr-2">{job.label}</span>
+                    <button
+                      onClick={() => lxPrinterClient.cancelJob(job.id)}
+                      className="text-slate-500 hover:text-rose-400 transition"
+                      title="キャンセル"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* Printer Console Panel */}
-          <div className="bg-slate-950 border border-slate-850 rounded-3xl p-5 flex flex-col h-[220px]">
+          <div className="bg-slate-950 border border-slate-850 rounded-3xl p-5 flex flex-col h-[200px]">
             <div className="flex items-center justify-between pb-3 border-b border-slate-900 mb-3">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">
                 System Spooler Output
@@ -586,7 +634,9 @@ export default function AdminQueuePage() {
                             onClick={async () => {
                               try {
                                 addLog(`[Manual] Printing selected card...`);
-                                await lxPrinterClient.printCanvas(card.canvasDataUrl);
+                                await lxPrinterClient.printCanvas(card.canvasDataUrl, {
+                                  label: `[Preview] ${selectedRegistrant.name} (Card ${index + 1})`
+                                });
                                 addLog(`[Printer] Manual print complete.`);
                               } catch (err: unknown) {
                                 const errorMsg = err instanceof Error ? err.message : String(err);
