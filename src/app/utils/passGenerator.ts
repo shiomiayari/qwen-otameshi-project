@@ -30,10 +30,10 @@ const snsConfig = [
 /**
  * Resolves the final URL to encode in the Discord QR code.
  * Priority:
- *   1. Already a discord:// deep-link ↁEuse as-is
- *   2. Raw numeric Snowflake ID (18 digits) ↁEwrap in discord:// deep-link
- *   3. https://discord.com/users/<id> where <id> is numeric ↁEextract and wrap
- *   4. Anything else (legacy username string) ↁEuse the value as-is (https fallback)
+ *   1. Already a discord:// deep-link → use as-is
+ *   2. Raw numeric Snowflake ID (18 digits) → wrap in discord:// deep-link
+ *   3. https://discord.com/users/<id> where <id> is numeric → extract and wrap
+ *   4. Anything else (legacy username string) → use the value as-is (https fallback)
  */
 function resolveDiscordQrUrl(value: string): string {
   // Already a discord:// deep link
@@ -46,7 +46,7 @@ function resolveDiscordQrUrl(value: string): string {
   const webProfileMatch = value.match(/discord\.com\/users\/(\d+)/);
   if (webProfileMatch) return `discord://-/users/${webProfileMatch[1]}`;
 
-  // Legacy username string  Ereturn as-is for backwards compatibility
+  // Legacy username string – return as-is for backwards compatibility
   return value;
 }
 
