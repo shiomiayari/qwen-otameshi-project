@@ -75,7 +75,13 @@ export async function generateLxCanvases(
     jobs.push({ template: "lx-2qr.png", qrs: [activeSnsItems[2], activeSnsItems[3]] });
   }
 
-  const FONT_FAMILY = "'Noto Sans JP', sans-serif";
+  const getCSSVar = (name: string) => {
+    if (typeof document === "undefined") return "";
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  };
+  const googleSans = getCSSVar("--font-google-sans") || "'Google Sans'";
+  const notoSansJP = getCSSVar("--font-noto-sans-jp") || "'Noto Sans JP'";
+  const FONT_FAMILY = `${googleSans}, ${notoSansJP}, sans-serif`;
 
   // ジョブごとにキャンバスを描画
   for (let i = 0; i < jobs.length; i++) {
