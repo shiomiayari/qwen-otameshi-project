@@ -67,6 +67,7 @@ function TwitterCompleteContent() {
   };
 
   return (
+    <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-gray-950 to-black text-white">
       <div className={`w-full max-w-md rounded-2xl shadow-xl p-8 border transition-all duration-300 ${
         completed
           ? "bg-slate-900 border-slate-800 text-white shadow-[0_0_20px_rgba(168,85,247,0.15)]"
