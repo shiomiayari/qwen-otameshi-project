@@ -102,9 +102,9 @@ export default function RegisterPage() {
       snsUrls.custom = url;
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
-        const newReg = addRegistration(name.trim(), affiliation.trim(), snsUrls);
+        const newReg = await addRegistration(name.trim(), affiliation.trim(), snsUrls);
         router.push(`/register-success?id=${newReg.id}`);
       } catch (err: unknown) {
         console.error(err);
