@@ -1,4 +1,4 @@
-import { LXD02Printer, PrinterStatus } from "lx-printer/lx-d02";
+import { LXD02Printer, PrinterStatus, PrintData } from "lx-printer/lx-d02";
 
 class PrinterClient {
   private static instance: PrinterClient;
@@ -51,7 +51,8 @@ class PrinterClient {
       img.onerror = reject;
     });
 
-    await this.printer.print(img, { density: 5 }); // Density defaults to 5 (good contrast)
+    const printData = PrintData.fromImage(img, { algorithm: 'threshold' });
+    await this.printer.print(printData, { density: 5 }); // Density defaults to 5 (good contrast)
   }
 
   public subscribe(listener: (status: PrinterStatus) => void): () => void {

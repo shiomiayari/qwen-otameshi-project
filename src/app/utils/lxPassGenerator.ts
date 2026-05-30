@@ -83,7 +83,7 @@ export async function generateLxCanvases(
     const bgImage = await loadImage(`/templates/${job.template}`);
 
     const canvas = document.createElement("canvas");
-    canvas.width = 406;
+    canvas.width = 384;
     canvas.height = bgImage.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Failed to get 2D context");
@@ -95,24 +95,22 @@ export async function generateLxCanvases(
     ctx.fillStyle = "#000000";
 
     // --- 名前描画 ---
-    // 基準Y=322 (bottom), フォント48px, 中央揃え(X=203)
-    ctx.font = `bold 48px ${FONT_FAMILY}`;
+    // 基準Y=322 (alphabetic), フォント32px, 中央揃え(X=192)
+    ctx.font = `bold 32px ${FONT_FAMILY}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic"; 
-    // textBaseline="bottom" だとディセンダー（gやyの下部）が見切れる可能性があるため、
-    // Y=322を基準として微調整します。
-    ctx.fillText(name, 203, 318);
+    ctx.fillText(name, 192, 358);
 
     // --- 所属描画 ---
-    // 基準Y=436 (bottom), 5文字以内36px/6文字以上24px, X=274
-    const affSize = affiliation.length <= 5 ? 36 : 24;
+    // 基準Y=427 (alphabetic), フォント24px, 中央揃え(X=192)
+    const affSize = 24;
     ctx.font = `bold ${affSize}px ${FONT_FAMILY}`;
     ctx.textAlign = "center";
-    ctx.fillText(affiliation, 274, 432);
+    ctx.fillText(affiliation, 192, 427);
 
     // --- QR描画 ---
     // QR1: Y=503, QR2: Y=770
-    // サイズ: 190x190, 中央揃えなので X = 203 - 95 = 108
+    // サイズ: 190x190, 中央揃えなので X = 192 - 95 = 97
     const qrPositions = [
       { y: 503, labelY: 490 },
       { y: 770, labelY: 757 }
@@ -133,12 +131,12 @@ export async function generateLxCanvases(
       const qrImg = await loadImage(qrDataUrl);
       
       // QR描画
-      ctx.drawImage(qrImg, 108, pos.y, 190, 190);
+      ctx.drawImage(qrImg, 97, pos.y, 190, 190);
 
-      // SNSラベル描画 (上部に20pxで)
-      ctx.font = `bold 20px ${FONT_FAMILY}`;
+      // SNSラベル描画 (上部に24pxで)
+      ctx.font = `bold 24px ${FONT_FAMILY}`;
       ctx.textAlign = "center";
-      ctx.fillText(sns.label, 203, pos.labelY);
+      ctx.fillText(sns.label, 192, pos.labelY);
     }
 
     cards.push({
