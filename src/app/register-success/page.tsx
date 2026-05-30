@@ -2,8 +2,9 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getRegistrations } from "../utils/storage";
-import { generatePassCanvases, PassCard } from "../utils/passGenerator";
+import { getRegistration } from "../utils/storage";
+import { generateLxCanvases } from "../utils/lxPassGenerator";
+import { PassCard } from "../utils/passGenerator";
 import { Registration } from "../utils/types";
 
 function RegisterSuccessContent() {
@@ -11,27 +12,40 @@ function RegisterSuccessContent() {
   const router = useRouter();
   const id = searchParams.get("id");
 
-  const [registration] = useState<Registration | null>(() => {
-    if (typeof window === "undefined" || !id) return null;
-    const regs = getRegistrations();
-    return regs.find((r) => r.id === id) || null;
-  });
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [registration, setRegistration] = useState<Registration | null>(null);
   const [cards, setCards] = useState<PassCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!id) {
+      Promise.resolve().then(() => setNotFound(true));
+      return;
+    }
+    getRegistration(id).then((reg) => {
+      if (reg) {
+        setRegistration(reg);
+      } else {
+        setNotFound(true);
+      }
+    }).catch(err => {
+      console.error("Failed to fetch registration", err);
+      setNotFound(true);
+    });
+  }, [id]);
 
   // Redirect to home if registration not found
   useEffect(() => {
-    if (!registration) {
+    if (notFound) {
       router.push("/");
     }
-  }, [registration, router]);
+  }, [notFound, router]);
 
-  // Generate badge images when registration or theme changes
+  // Generate badge images when registration changes
   useEffect(() => {
     if (!registration) return;
 
-    generatePassCanvases(registration.name, registration.affiliation, registration.snsUrls, theme)
+    generateLxCanvases(registration.name, registration.affiliation, registration.snsUrls)
       .then((generatedCards) => {
         setCards(generatedCards);
       })
@@ -41,7 +55,7 @@ function RegisterSuccessContent() {
       .finally(() => {
         setLoading(false);
       });
-  }, [registration, theme]);
+  }, [registration]);
 
   if (!registration) {
     return null;
@@ -53,12 +67,6 @@ function RegisterSuccessContent() {
     link.href = card.canvasDataUrl;
     link.click();
   };
-
-  const handleThemeChange = (newTheme: "light" | "dark") => {
-    setTheme(newTheme);
-    setLoading(true);
-  };
-
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
@@ -119,31 +127,6 @@ function RegisterSuccessContent() {
           </ol>
         </div>
 
-        {/* Theme Select & Preview Control */}
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-350 tracking-wider">
-            名前札のデザインプレビュー
-          </h3>
-          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
-            <button
-              onClick={() => handleThemeChange("dark")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                theme === "dark" ? "bg-violet-600 text-white shadow" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              ダーク
-            </button>
-            <button
-              onClick={() => handleThemeChange("light")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                theme === "light" ? "bg-violet-600 text-white shadow" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              ライト
-            </button>
-          </div>
-        </div>
-
         {/* Loading / Cards Preview Grid */}
         {loading ? (
           <div className="text-center py-20 bg-slate-950/20 border border-slate-850 rounded-2xl">
@@ -168,7 +151,7 @@ function RegisterSuccessContent() {
                   </span>
                 </div>
 
-                <div className="relative aspect-[600/380] w-full max-w-lg mx-auto bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
+                <div className="relative h-[400px] w-full max-w-lg mx-auto bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
                   <img
                     src={card.canvasDataUrl}
                     alt={`Event Pass Card ${idx + 1}`}
