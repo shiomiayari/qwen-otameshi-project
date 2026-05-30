@@ -46,17 +46,14 @@ export async function GET(request: NextRequest) {
     });
 
     const userData = await userResponse.json();
-    
-    // Discord handles:
-    // Some older accounts use username#discriminator. 
-    // Newer accounts use 'username' or 'global_name'.
-    let displayUsername = userData.username;
-    if (userData.discriminator && userData.discriminator !== '0') {
-      displayUsername = `${userData.username}#${userData.discriminator}`;
-    }
 
-    if (!displayUsername) {
-      return new NextResponse('Failed to obtain username', { status: 400 });
+    // Use the numeric Snowflake ID (18 digits) for deep-link QR codes.
+    // userData.id is always present and numeric for every Discord account.
+    const discordId: string = userData.id;
+
+    if (!discordId || !/^\d+$/.test(discordId)) {
+      console.error('Discord user data missing or invalid id:', userData);
+      return new NextResponse('Failed to obtain Discord user ID', { status: 400 });
     }
 
     // 3. Return HTML that sends postMessage to parent window and closes itself
@@ -73,7 +70,7 @@ export async function GET(request: NextRequest) {
             window.opener.postMessage({
               type: 'OAUTH_SUCCESS',
               service: 'discord',
-              username: '${displayUsername}'
+              discordId: '${discordId}'
             }, '*');
             window.close();
           } else {
