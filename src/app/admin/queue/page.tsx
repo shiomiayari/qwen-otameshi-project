@@ -298,13 +298,13 @@ export default function AdminQueuePage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col p-6 relative overflow-hidden">
+    <main className="lg:h-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col p-6 relative lg:overflow-hidden">
       {/* Dynamic Glowing Accent Backgrounds */}
       <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[40%] rounded-full bg-violet-600/5 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-600/5 blur-[120px] pointer-events-none" />
 
       {/* Header Panel */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-900 relative z-10">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-900 relative z-10 shrink-0">
         <div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-violet-500 animate-pulse" />
@@ -365,7 +365,7 @@ export default function AdminQueuePage() {
       </header>
 
       {/* Stats Cards Row */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 relative z-10">
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 relative z-10 shrink-0">
         <div className="bg-slate-900/40 border border-slate-850 rounded-2xl p-4 flex justify-between items-center">
           <div>
             <p className="text-xs font-medium text-slate-500">総登録者数</p>
@@ -407,7 +407,7 @@ export default function AdminQueuePage() {
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10 min-h-0">
         
         {/* Left Column: Queue List (7/12 cols) */}
-        <div className="lg:col-span-7 flex flex-col bg-slate-900/40 border border-slate-850 rounded-3xl overflow-hidden min-h-[450px]">
+        <div className="lg:col-span-7 flex flex-col bg-slate-900/40 border border-slate-850 rounded-3xl overflow-hidden min-h-[450px] lg:min-h-0">
           {/* Filter Toolbar */}
           <div className="p-4 border-b border-slate-850 bg-slate-900/20 flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
@@ -536,7 +536,7 @@ export default function AdminQueuePage() {
         <div className="lg:col-span-5 flex flex-col gap-5 min-h-0">
           
           {/* Printer Console Panel */}
-          <div className="bg-slate-950 border border-slate-850 rounded-3xl p-5 flex flex-col h-[220px]">
+          <div className="bg-slate-950 border border-slate-850 rounded-3xl p-5 flex flex-col h-[220px] shrink-0">
             <div className="flex items-center justify-between pb-3 border-b border-slate-900 mb-3">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">
                 System Spooler Output
@@ -557,17 +557,17 @@ export default function AdminQueuePage() {
           </div>
 
           {/* Live Badge Preview Panel */}
-          <div className="flex-1 bg-slate-900/40 border border-slate-850 rounded-3xl p-5 flex flex-col justify-between min-h-[300px]">
+          <div className="flex-1 bg-slate-900/40 border border-slate-850 rounded-3xl p-5 flex flex-col justify-between min-h-[300px] lg:min-h-0 overflow-hidden">
             {selectedRegistrant ? (
-              <div className="space-y-4 flex-1 flex flex-col">
-                <div className="flex justify-between items-center">
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="flex justify-between items-center shrink-0 mb-4">
                   <div>
                     <h3 className="text-xs font-bold text-slate-400">プレビュー / ダウンロード</h3>
                     <p className="text-sm font-bold text-white mt-0.5">{selectedRegistrant.name} のパス</p>
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-4 max-h-[300px] pr-2">
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2 min-h-0">
                   {previewCards.map((card, index) => (
                     <div key={index} className="bg-slate-950 border border-slate-850 rounded-xl p-3 space-y-2">
                       <div className="flex justify-between items-center text-[10px] text-slate-500">
