@@ -95,16 +95,14 @@ export async function generateLxCanvases(
     ctx.fillStyle = "#000000";
 
     // --- 名前描画 ---
-    // 基準Y=322 (bottom), フォント32px, 中央揃え(X=192)
+    // 基準Y=322 (alphabetic), フォント32px, 中央揃え(X=192)
     ctx.font = `bold 32px ${FONT_FAMILY}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic"; 
-    // textBaseline="bottom" だとディセンダー（gやyの下部）が見切れる可能性があるため、
-    // Y=322を基準として微調整します。
     ctx.fillText(name, 192, 358);
 
     // --- 所属描画 ---
-    // 基準Y=436 (bottom), フォント24px, X=259
+    // 基準Y=427 (alphabetic), フォント24px, 中央揃え(X=192)
     const affSize = 24;
     ctx.font = `bold ${affSize}px ${FONT_FAMILY}`;
     ctx.textAlign = "center";
