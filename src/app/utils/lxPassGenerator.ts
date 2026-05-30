@@ -70,7 +70,7 @@ export async function generateLxCanvases(
   } else if (count === 3) {
     jobs.push({ template: "lx-1qr.png", qrs: [activeSnsItems[0]] });
     jobs.push({ template: "lx-2qr.png", qrs: [activeSnsItems[1], activeSnsItems[2]] });
-  } else if (count === 4) {
+  } else if (count >= 4) {
     jobs.push({ template: "lx-2qr.png", qrs: [activeSnsItems[0], activeSnsItems[1]] });
     jobs.push({ template: "lx-2qr.png", qrs: [activeSnsItems[2], activeSnsItems[3]] });
   }
