@@ -1,4 +1,4 @@
-# qwen-otameshi-project (CarryMyBottle Event System)
+# qwen-otameshi-project (Event reception app)
 
 **自主登録型イベント受付システム** — 参加者が自身のスマホでチェックイン登録（複数SNS対応）を行い、主催者用端末へリアルタイム同期して名前札を自動・手動印刷するハイブリッド受付システム。
 
