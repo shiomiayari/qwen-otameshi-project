@@ -71,6 +71,11 @@ export async function generatePassCanvases(
     return [];
   }
 
+  // Ensure the custom font is ready before drawing
+  if (typeof document !== "undefined" && document.fonts) {
+    await document.fonts.ready;
+  }
+
   // 1. Filter out SNS URLs that have been entered
   const activeSnsItems: { key: string; label: string; value: string; color: string }[] = [];
   for (const config of snsConfig) {
@@ -323,12 +328,16 @@ export async function generatePassCanvases(
 /**
  * Generates event pass card as high resolution PNG and triggers download (legacy helper).
  */
-export const generateAndDownloadPass = (
+export const generateAndDownloadPass = async (
   name: string,
   url: string,
   qrCodeUrl: string,
   theme: "light" | "dark"
 ): Promise<void> => {
+  if (typeof document !== "undefined" && document.fonts) {
+    await document.fonts.ready;
+  }
+
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined") {
       reject(new Error("Cannot run outside browser environment"));
