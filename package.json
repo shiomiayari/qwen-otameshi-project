@@ -12,7 +12,7 @@
     "axios": "^1.16.1",
     "firebase": "^12.14.0",
     "html5-qrcode": "^2.3.8",
-    "lx-printer": "^0.4.0",
+    "lx-printer": "^0.5.0",
     "next": "16.2.6",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
