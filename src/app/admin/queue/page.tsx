@@ -173,8 +173,9 @@ export default function AdminQueuePage() {
         addLog(`[Config] Requesting Bluetooth connection...`);
         await lxPrinterClient.connect();
         addLog(`[Config] Printer connected successfully.`);
-      } catch (err: any) {
-        addLog(`[Error] Bluetooth connection failed: ${err.message}`);
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        addLog(`[Error] Bluetooth connection failed: ${errorMsg}`);
         console.error("Bluetooth connection failed:", err);
       }
     }
@@ -490,8 +491,9 @@ export default function AdminQueuePage() {
                                 addLog(`[Manual] Printing selected card...`);
                                 await lxPrinterClient.printCanvas(card.canvasDataUrl);
                                 addLog(`[Printer] Manual print complete.`);
-                              } catch (err: any) {
-                                addLog(`[Error] Print failed: ${err.message}`);
+                              } catch (err: unknown) {
+                                const errorMsg = err instanceof Error ? err.message : String(err);
+                                addLog(`[Error] Print failed: ${errorMsg}`);
                               }
                             }}
                             className="text-violet-400 hover:text-violet-300 font-bold transition flex items-center gap-1"
