@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User } from "firebase/auth";
+import { auth } from "../../utils/firebase";
 import {
   subscribeToRegistrations,
   updateRegistrationStatus,
@@ -15,6 +17,13 @@ import { PrinterStatus } from "lx-printer/lx-d02";
 import { Registration } from "../../utils/types";
 
 export default function AdminQueuePage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+
   // Safe initializers to avoid React hydration mismatches
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [autoPrint, setAutoPrint] = useState(false);
@@ -40,14 +49,27 @@ export default function AdminQueuePage() {
     setLogs((prev) => [`[${time}] ${msg}`, ...prev].slice(0, 50));
   };
 
-  // 2. Listen to Firestore real-time updates
+  // 1. Listen to Auth State
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Listen to Firestore real-time updates (only if logged in)
   useEffect(() => {
     Promise.resolve().then(() => setAutoPrint(getAutoPrintMode()));
+    if (!user) {
+      Promise.resolve().then(() => setRegistrations([]));
+      return;
+    }
     const unsubscribe = subscribeToRegistrations((regs) => {
       setRegistrations(regs);
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // 2.5 Listen to Printer Status
   useEffect(() => {
@@ -198,6 +220,83 @@ export default function AdminQueuePage() {
   const statsPending = registrations.filter((r) => r.printStatus === "pending").length;
   const statsPrinted = registrations.filter((r) => r.printStatus === "printed").length;
 
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+    setLoginLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err: unknown) {
+      setLoginError("ログインに失敗しました。メールアドレスとパスワードを確認してください。");
+      console.error(err);
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+        <div className="w-10 h-10 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[40%] rounded-full bg-violet-600/10 blur-[120px] pointer-events-none" />
+        <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-xl border border-slate-850 rounded-3xl p-8 shadow-2xl relative z-10">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-extrabold text-white mb-2">管理者ログイン</h1>
+            <p className="text-sm text-slate-400">ダッシュボードへアクセスするにはログインしてください</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            {loginError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+                {loginError}
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">メールアドレス</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition"
+                placeholder="admin@example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">パスワード</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition"
+                placeholder="••••••••"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full mt-6 py-3.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl transition disabled:opacity-50 flex items-center justify-center"
+            >
+              {loginLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                "ログイン"
+              )}
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col p-6 relative overflow-hidden">
       {/* Dynamic Glowing Accent Backgrounds */}
@@ -219,6 +318,12 @@ export default function AdminQueuePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => signOut(auth)}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-bold rounded-xl transition mr-2"
+          >
+            ログアウト
+          </button>
           {/* Hardware Connection Mock Button */}
           <button
             onClick={handleTogglePrinterConnection}
