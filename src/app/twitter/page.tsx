@@ -2,26 +2,18 @@
 
 import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import QRCode from "qrcode";
-
-interface PassData {
-  name: string;
-  url: string;
-  qrCodeUrl: string | null;
-}
-
-import { generateAndDownloadPass } from "../utils/passGenerator";
+import { generateLxCanvases } from "../utils/lxPassGenerator";
+import { PassCard } from "../utils/passGenerator";
 
 function TwitterCompleteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [name] = useState(searchParams.get("name") || "");
   const [inputUrl, setInputUrl] = useState("");
-  const [passData, setPassData] = useState<PassData | null>(null);
+  const [cards, setCards] = useState<PassCard[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [completed, setCompleted] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [isDownloading, setIsDownloading] = useState(false);
 
   const xProfileUrl = "https://x.com";
 
@@ -51,51 +43,41 @@ function TwitterCompleteContent() {
       return;
     }
 
-    const qrData = `${name},${cleaned}`;
-
-    QRCode.toDataURL(qrData, { width: 300, margin: 2 })
-      .then((qrCodeUrl) => {
-        setPassData({
-          name,
-          url: cleaned,
-          qrCodeUrl,
-        });
+    setLoading(true);
+    generateLxCanvases(name, "", { x: cleaned })
+      .then((generatedCards) => {
+        setCards(generatedCards);
         setCompleted(true);
         setError("");
       })
       .catch((err) => {
-        console.error("QR生成エラー:", err);
-        setError("QRコードの生成に失敗しました");
+        console.error("生成エラー:", err);
+        setError("パスの生成に失敗しました");
+      })
+      .finally(() => {
+        setLoading(false);
       });
   };
 
-  const handleDownload = async () => {
-    if (!passData || !passData.qrCodeUrl) return;
-    try {
-      setIsDownloading(true);
-      await generateAndDownloadPass(passData.name, passData.url, passData.qrCodeUrl, theme);
-    } catch (err) {
-      console.error("Download error:", err);
-      alert("画像の保存に失敗しました");
-    } finally {
-      setIsDownloading(false);
-    }
+  const handleDownload = (card: PassCard, index: number) => {
+    const link = document.createElement("a");
+    link.download = `event_pass_${name.replace(/\s+/g, "_")}_card${index + 1}.png`;
+    link.href = card.canvasDataUrl;
+    link.click();
   };
 
   return (
-    <main className={`min-h-screen flex items-center justify-center p-4 transition-all duration-300 ${
-      theme === "light" && completed
-        ? "bg-gradient-to-b from-purple-50 to-pink-50 text-slate-900" 
-        : "bg-gradient-to-b from-gray-950 to-black text-white"
-    }`}>
       <div className={`w-full max-w-md rounded-2xl shadow-xl p-8 border transition-all duration-300 ${
         completed
-          ? theme === "light"
-            ? "bg-white border-slate-100 text-slate-900"
-            : "bg-slate-900 border-slate-800 text-white shadow-[0_0_20px_rgba(168,85,247,0.15)]"
+          ? "bg-slate-900 border-slate-800 text-white shadow-[0_0_20px_rgba(168,85,247,0.15)]"
           : "bg-gray-900 border-gray-800 text-white"
       }`}>
-        {completed && passData ? (
+        {loading ? (
+          <div className="text-center py-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-white mx-auto mb-4 border-t-transparent"></div>
+            <p>生成中...</p>
+          </div>
+        ) : completed && cards.length > 0 ? (
           <div>
             <div className="text-center mb-6">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-green-950/20 border border-green-500 rounded-full mb-4 text-green-500">
@@ -103,98 +85,38 @@ function TwitterCompleteContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h1 className={`text-2xl font-bold mb-2 ${theme === "light" ? "text-slate-800" : "text-white"}`}>
-                {passData.name} さん
+              <h1 className="text-2xl font-bold mb-2 text-white">
+                {name} さん
               </h1>
               <p className="text-slate-400 text-sm">受付パスが発行されました</p>
             </div>
 
-            <div className={`rounded-xl p-6 mb-6 transition-all duration-300 ${theme === "light" ? "bg-slate-50 border border-slate-100" : "bg-slate-950 border border-slate-850"}`}>
-              {passData.qrCodeUrl && (
-                <img
-                  src={passData.qrCodeUrl}
-                  alt="QRコード"
-                  className="w-full max-w-[300px] mx-auto"
-                />
-              )}
-            </div>
-
-            {/* Design Theme Selector */}
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                デザインテーマ
-              </span>
-              <div className={`flex p-1 rounded-lg border transition-all duration-300 ${
-                theme === "light" 
-                  ? "bg-slate-100 border-slate-200" 
-                  : "bg-slate-850 border-slate-750"
-              }`}>
-                <button
-                  onClick={() => setTheme("light")}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                    theme === "light"
-                      ? "bg-white text-purple-600 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  ライト
-                </button>
-                <button
-                  onClick={() => setTheme("dark")}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                    theme === "dark"
-                      ? "bg-slate-950 text-purple-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-400"
-                  }`}
-                >
-                  ダーク
-                </button>
-              </div>
-            </div>
-
-            {/* Save Image Button */}
-            <button
-              onClick={handleDownload}
-              disabled={isDownloading}
-              className={`w-full mb-4 py-3 rounded-lg font-medium tracking-wide flex items-center justify-center gap-2 transition disabled:opacity-50 ${
-                theme === "light"
-                  ? "bg-slate-900 text-white hover:bg-slate-850"
-                  : "bg-white text-slate-900 hover:bg-slate-100"
-              }`}
-            >
-              {isDownloading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
-                  保存中...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  画像として保存
-                </>
-              )}
-            </button>
-
-            <div className="text-center space-y-3">
-              <div className={`p-3 rounded-lg transition-all duration-300 ${theme === "light" ? "bg-purple-50" : "bg-slate-805 bg-slate-850"}`}>
-                <p className={`text-[10px] uppercase font-semibold mb-1 ${theme === "light" ? "text-purple-600" : "text-slate-500"}`}>名前</p>
-                <p className={`text-lg font-semibold ${theme === "light" ? "text-slate-850" : "text-white"}`}>{passData.name}</p>
-              </div>
-              <div className={`p-3 rounded-lg transition-all duration-300 ${theme === "light" ? "bg-purple-50" : "bg-slate-805 bg-slate-850"}`}>
-                <p className={`text-[10px] uppercase font-semibold mb-1 ${theme === "light" ? "text-purple-600" : "text-slate-500"}`}>SNS URL</p>
-                <p className={`text-sm break-all ${theme === "light" ? "text-slate-650" : "text-slate-300"}`}>{passData.url}</p>
-              </div>
+            <div className="space-y-6 mb-6">
+              {cards.map((card, idx) => (
+                <div key={idx} className="bg-slate-950 border border-slate-850 rounded-xl p-4">
+                  <div className="relative h-[400px] w-full max-w-[300px] mx-auto overflow-hidden">
+                    <img
+                      src={card.canvasDataUrl}
+                      alt="イベントパス"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleDownload(card, idx)}
+                    className="w-full mt-4 py-3 bg-white text-slate-900 hover:bg-slate-100 rounded-lg font-medium tracking-wide flex items-center justify-center gap-2 transition"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    画像を保存
+                  </button>
+                </div>
+              ))}
             </div>
 
             <button
               onClick={() => router.push("/")}
-              className={`w-full mt-6 py-3 rounded-lg font-medium transition ${
-                theme === "light"
-                  ? "bg-slate-100 hover:bg-slate-200 text-slate-800"
-                  : "bg-white hover:bg-slate-200 text-black"
-              }`}
+              className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition"
             >
               他のユーザーを登録
             </button>
