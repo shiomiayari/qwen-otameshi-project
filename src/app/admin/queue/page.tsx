@@ -563,15 +563,27 @@ export default function AdminQueuePage() {
             </div>
             <div className="flex-1 overflow-y-auto space-y-2 pr-2">
               {queueJobs.length === 0 ? (
-                <p className="text-[10px] text-slate-500 text-center py-4">待機中のジョブはありません</p>
+                <p className="text-[10px] text-slate-500 text-center py-4">印刷キューにジョブはありません</p>
               ) : (
                 queueJobs.map(job => (
                   <div key={job.id} className="flex items-center justify-between bg-slate-950 border border-slate-850 p-2 rounded-xl">
-                    <span className="text-xs text-white truncate pr-2">{job.label}</span>
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      {job.status === "printing" ? (
+                        <span className="flex-shrink-0 px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-bold rounded animate-pulse">
+                          印刷中
+                        </span>
+                      ) : (
+                        <span className="flex-shrink-0 px-1.5 py-0.5 bg-slate-800 text-slate-400 text-[9px] font-bold rounded">
+                          待機中
+                        </span>
+                      )}
+                      <span className="text-xs text-white truncate">{job.label}</span>
+                    </div>
                     <button
                       onClick={() => lxPrinterClient.cancelJob(job.id)}
                       className="text-slate-500 hover:text-rose-400 transition"
                       title="キャンセル"
+                      aria-label={`${job.label} の印刷ジョブをキャンセル`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

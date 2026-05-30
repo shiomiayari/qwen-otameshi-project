@@ -11,6 +11,7 @@ interface PrintJob {
 export interface QueueJobInfo {
   id: string;
   label: string;
+  status: "printing" | "pending";
 }
 
 class PrinterClient {
@@ -19,6 +20,7 @@ class PrinterClient {
   public status: PrinterStatus | null = null;
   private listeners: Array<(status: PrinterStatus) => void> = [];
   private printQueue: PrintJob[] = [];
+  private currentJob: PrintJob | null = null;
   private isProcessingQueue: boolean = false;
   private queueListeners: Array<(queue: QueueJobInfo[]) => void> = [];
 
@@ -52,6 +54,11 @@ class PrinterClient {
       this.printer.disconnect();
       this.printer = null;
     }
+    if (this.currentJob) {
+      const job = this.currentJob;
+      this.currentJob = null;
+      job.reject(new Error("Printer disconnected."));
+    }
     while (this.printQueue.length > 0) {
       const job = this.printQueue.shift();
       job?.reject(new Error("Printer disconnected."));
@@ -61,10 +68,32 @@ class PrinterClient {
   }
 
   public getQueueInfo(): QueueJobInfo[] {
-    return this.printQueue.map((job) => ({ id: job.id, label: job.label }));
+    const queueInfo: QueueJobInfo[] = [];
+    if (this.currentJob) {
+      queueInfo.push({
+        id: this.currentJob.id,
+        label: this.currentJob.label,
+        status: "printing",
+      });
+    }
+    this.printQueue.forEach((job) => {
+      queueInfo.push({
+        id: job.id,
+        label: job.label,
+        status: "pending",
+      });
+    });
+    return queueInfo;
   }
 
   public cancelJob(id: string): void {
+    if (this.currentJob && this.currentJob.id === id) {
+      const job = this.currentJob;
+      this.currentJob = null;
+      job.reject(new Error("Job cancelled by user"));
+      this.notifyQueueListeners();
+      return;
+    }
     const index = this.printQueue.findIndex((job) => job.id === id);
     if (index !== -1) {
       const [job] = this.printQueue.splice(index, 1);
@@ -74,6 +103,11 @@ class PrinterClient {
   }
 
   public clearQueue(): void {
+    if (this.currentJob) {
+      const job = this.currentJob;
+      this.currentJob = null;
+      job.reject(new Error("Queue cleared by user"));
+    }
     while (this.printQueue.length > 0) {
       const job = this.printQueue.shift();
       job?.reject(new Error("Queue cleared by user"));
@@ -107,6 +141,7 @@ class PrinterClient {
       const job = this.printQueue.shift();
       if (!job) break;
 
+      this.currentJob = job;
       this.notifyQueueListeners();
 
       try {
@@ -122,10 +157,25 @@ class PrinterClient {
           img.onerror = reject;
         });
 
+        // Check if job was cancelled while loading the image
+        if (this.currentJob?.id !== job.id) {
+          throw new Error("Job cancelled by user");
+        }
+
         await this.printer.print(img, { density: 5 }); // Density defaults to 5 (good contrast)
-        job.resolve();
+        
+        if (this.currentJob?.id === job.id) {
+          job.resolve();
+        }
       } catch (err) {
-        job.reject(err instanceof Error ? err : new Error(String(err)));
+        if (this.currentJob?.id === job.id) {
+          job.reject(err instanceof Error ? err : new Error(String(err)));
+        }
+      } finally {
+        if (this.currentJob?.id === job.id) {
+          this.currentJob = null;
+        }
+        this.notifyQueueListeners();
       }
     }
 
