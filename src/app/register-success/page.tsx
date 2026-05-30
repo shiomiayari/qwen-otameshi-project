@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getRegistrations } from "../utils/storage";
+import { getRegistration } from "../utils/storage";
 import { generateLxCanvases } from "../utils/lxPassGenerator";
 import { PassCard } from "../utils/passGenerator";
 import { Registration } from "../utils/types";
@@ -12,20 +12,34 @@ function RegisterSuccessContent() {
   const router = useRouter();
   const id = searchParams.get("id");
 
-  const [registration] = useState<Registration | null>(() => {
-    if (typeof window === "undefined" || !id) return null;
-    const regs = getRegistrations();
-    return regs.find((r) => r.id === id) || null;
-  });
+  const [registration, setRegistration] = useState<Registration | null>(null);
   const [cards, setCards] = useState<PassCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!id) {
+      Promise.resolve().then(() => setNotFound(true));
+      return;
+    }
+    getRegistration(id).then((reg) => {
+      if (reg) {
+        setRegistration(reg);
+      } else {
+        setNotFound(true);
+      }
+    }).catch(err => {
+      console.error("Failed to fetch registration", err);
+      setNotFound(true);
+    });
+  }, [id]);
 
   // Redirect to home if registration not found
   useEffect(() => {
-    if (!registration) {
+    if (notFound) {
       router.push("/");
     }
-  }, [registration, router]);
+  }, [notFound, router]);
 
   // Generate badge images when registration changes
   useEffect(() => {

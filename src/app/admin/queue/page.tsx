@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  getRegistrations,
+  subscribeToRegistrations,
   updateRegistrationStatus,
   getAutoPrintMode,
   setAutoPrintMode,
-  saveRegistrations,
+  clearRegistrations,
 } from "../../utils/storage";
 import { PassCard } from "../../utils/passGenerator";
 import { generateLxCanvases } from "../../utils/lxPassGenerator";
@@ -40,18 +40,13 @@ export default function AdminQueuePage() {
     setLogs((prev) => [`[${time}] ${msg}`, ...prev].slice(0, 50));
   };
 
-  // 2. Listen to localStorage updates across tabs
+  // 2. Listen to Firestore real-time updates
   useEffect(() => {
-    const handleStorage = () => {
-      const currentRegs = getRegistrations();
-      setRegistrations(currentRegs);
-      setAutoPrint(getAutoPrintMode());
-    };
-
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-    };
+    Promise.resolve().then(() => setAutoPrint(getAutoPrintMode()));
+    const unsubscribe = subscribeToRegistrations((regs) => {
+      setRegistrations(regs);
+    });
+    return () => unsubscribe();
   }, []);
 
   // 2.5 Listen to Printer Status
@@ -93,7 +88,6 @@ export default function AdminQueuePage() {
         })
         .then(() => {
           addLog(`[Printer] PRINT COMPLETE for ${reg.name}.`);
-          setRegistrations(getRegistrations());
         })
         .catch((err: unknown) => {
           console.error("Auto print failed:", err);
@@ -138,7 +132,6 @@ export default function AdminQueuePage() {
 
     addLog(`[Manual-Print] Started printing job for ${reg.name}`);
     updateRegistrationStatus(reg.id, "printed");
-    setRegistrations(getRegistrations());
 
     generateLxCanvases(reg.name, reg.affiliation, reg.snsUrls)
       .then(async (cards) => {
@@ -181,10 +174,9 @@ export default function AdminQueuePage() {
     }
   };
 
-  const handleClearQueue = () => {
+  const handleClearQueue = async () => {
     if (window.confirm("キュー履歴をすべてクリアしますか？")) {
-      saveRegistrations([]);
-      setRegistrations([]);
+      await clearRegistrations();
       setSelectedRegistrant(null);
       processedIdsRef.current.clear();
       addLog(`[Database] Queue cleared. All registration logs removed.`);

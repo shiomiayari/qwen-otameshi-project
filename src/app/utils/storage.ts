@@ -1,61 +1,80 @@
+import { collection, addDoc, updateDoc, doc, getDoc, onSnapshot, query, orderBy, getDocs, deleteDoc } from "firebase/firestore";
+import { db } from "./firebase";
 import { Registration } from "./types";
 
-const STORAGE_KEY = "event_registrations";
 const AUTO_PRINT_KEY = "event_auto_print_mode";
 
-export function getRegistrations(): Registration[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (error) {
-    console.error("Failed to parse registrations:", error);
-    return [];
-  }
-}
-
-export function saveRegistrations(regs: Registration[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(regs));
-    // Manually dispatch a storage event for local updates on the same tab
-    window.dispatchEvent(new Event("storage"));
-  } catch (error) {
-    console.error("Failed to save registrations:", error);
-  }
-}
-
-export function addRegistration(name: string, affiliation: string, snsUrls: Registration["snsUrls"]): Registration {
-  const regs = getRegistrations();
-  const newReg: Registration = {
-    id: Math.random().toString(36).substring(2, 9),
+/**
+ * Add a new registration to Firestore
+ */
+export async function addRegistration(name: string, affiliation: string, snsUrls: Registration["snsUrls"]): Promise<Registration> {
+  const newReg = {
     name,
     affiliation,
     snsUrls,
     checkedInAt: new Date().toISOString(),
     printStatus: "pending",
   };
-  regs.unshift(newReg); // Put the newest first
-  saveRegistrations(regs);
-  return newReg;
+  
+  const docRef = await addDoc(collection(db, "registrations"), newReg);
+  
+  return {
+    id: docRef.id,
+    ...newReg,
+  } as Registration;
 }
 
-export function updateRegistrationStatus(id: string, status: "pending" | "printed"): Registration[] {
-  const regs = getRegistrations();
-  const updated = regs.map((r) => {
-    if (r.id === id) {
-      return {
-        ...r,
-        printStatus: status,
-        printedAt: status === "printed" ? new Date().toISOString() : undefined,
-      };
-    }
-    return r;
+/**
+ * Fetch a single registration by ID
+ */
+export async function getRegistration(id: string): Promise<Registration | null> {
+  if (!id) return null;
+  const docRef = doc(db, "registrations", id);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return { id: docSnap.id, ...docSnap.data() } as Registration;
+  }
+  return null;
+}
+
+/**
+ * Update registration print status
+ */
+export async function updateRegistrationStatus(id: string, status: "pending" | "printed"): Promise<void> {
+  const docRef = doc(db, "registrations", id);
+  await updateDoc(docRef, {
+    printStatus: status,
+    printedAt: status === "printed" ? new Date().toISOString() : null,
   });
-  saveRegistrations(updated);
-  return updated;
 }
 
+/**
+ * Subscribe to real-time registrations for admin queue
+ */
+export function subscribeToRegistrations(callback: (regs: Registration[]) => void) {
+  // Order by checkedInAt descending
+  const q = query(collection(db, "registrations"), orderBy("checkedInAt", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    const regs: Registration[] = [];
+    snapshot.forEach((docSnap) => {
+      regs.push({ id: docSnap.id, ...docSnap.data() } as Registration);
+    });
+    callback(regs);
+  });
+}
+
+/**
+ * Clear all registrations (Admin only)
+ */
+export async function clearRegistrations(): Promise<void> {
+  const snapshot = await getDocs(collection(db, "registrations"));
+  const promises = snapshot.docs.map(d => deleteDoc(d.ref));
+  await Promise.all(promises);
+}
+
+/**
+ * Local settings for auto-print mode (device-specific)
+ */
 export function getAutoPrintMode(): boolean {
   if (typeof window === "undefined") return false;
   return localStorage.getItem(AUTO_PRINT_KEY) === "true";
