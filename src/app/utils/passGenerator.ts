@@ -1,6 +1,17 @@
 import QRCode from "qrcode";
 import { SnsUrls } from "./types";
 
+const getCSSVar = (name: string) => {
+  if (typeof document === "undefined") return "";
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+};
+
+const getFontFamily = () => {
+  const googleSans = getCSSVar("--font-google-sans") || "'Google Sans'";
+  const notoSansJP = getCSSVar("--font-noto-sans-jp") || "'Noto Sans JP'";
+  return `${googleSans}, ${notoSansJP}, sans-serif`;
+};
+
 export interface PassCard {
   canvasDataUrl: string;
   cardIndex: number;
@@ -60,6 +71,11 @@ export async function generatePassCanvases(
     return [];
   }
 
+  // Ensure the custom font is ready before drawing
+  if (typeof document !== "undefined" && document.fonts) {
+    await document.fonts.ready;
+  }
+
   // 1. Filter out SNS URLs that have been entered
   const activeSnsItems: { key: string; label: string; value: string; color: string }[] = [];
   for (const config of snsConfig) {
@@ -93,6 +109,7 @@ export async function generatePassCanvases(
     const cardIndex = idx + 1;
 
     // Create a canvas
+    const FONT_FAMILY = getFontFamily();
     const canvas = document.createElement("canvas");
     canvas.width = 600;
     canvas.height = 380;
@@ -130,14 +147,14 @@ export async function generatePassCanvases(
     }
 
     // 4. Draw Header/Branding
-    ctx.font = "bold 12px sans-serif";
+    ctx.font = `bold 12px ${FONT_FAMILY}`;
     ctx.fillStyle = theme === "dark" ? "#a78bfa" : "#7c3aed";
     ctx.letterSpacing = "2px";
     ctx.fillText("EVENT PASS", 40, 45);
 
     // 5. Draw Pagination indicator (if multiple cards)
     if (totalCards > 1) {
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#64748b" : "#94a3b8";
       ctx.fillText(`CARD ${cardIndex} / ${totalCards}`, 500, 45);
     }
@@ -155,18 +172,18 @@ export async function generatePassCanvases(
       }
 
       // Draw Affiliation
-      ctx.font = "bold 16px sans-serif";
+      ctx.font = `bold 16px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#94a3b8" : "#475569";
       ctx.textAlign = "center";
       ctx.fillText(affiliation.toUpperCase(), 300, 160);
 
       // Draw Name
-      ctx.font = "bold 44px sans-serif";
+      ctx.font = `bold 44px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#ffffff" : "#0f172a";
       ctx.fillText(name, 300, 220);
 
       // Small helper tip
-      ctx.font = "italic 11px sans-serif";
+      ctx.font = `italic 11px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#475569" : "#94a3b8";
       ctx.fillText("No SNS Registered", 300, 320);
 
@@ -176,12 +193,12 @@ export async function generatePassCanvases(
       ctx.textAlign = "left";
 
       // Draw Affiliation
-      ctx.font = "bold 14px sans-serif";
+      ctx.font = `bold 14px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#94a3b8" : "#475569";
       ctx.fillText(affiliation.toUpperCase(), 40, 140);
 
       // Draw Name
-      ctx.font = "bold 38px sans-serif";
+      ctx.font = `bold 38px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#ffffff" : "#0f172a";
       // Handle long name wrapping/truncating
       const displayName = name.length > 10 ? name.substring(0, 9) + "..." : name;
@@ -190,11 +207,11 @@ export async function generatePassCanvases(
       // Draw SNS Label
       const sns = chunk[0];
       ctx.fillStyle = theme === "dark" ? "#64748b" : "#94a3b8";
-      ctx.font = "12px sans-serif";
+      ctx.font = `12px ${FONT_FAMILY}`;
       ctx.fillText("SCAN TO CONNECT", 40, 260);
 
       ctx.fillStyle = sns.color;
-      ctx.font = "bold 15px sans-serif";
+      ctx.font = `bold 15px ${FONT_FAMILY}`;
       const displayVal = sns.value.replace(/^https?:\/\/(www\.)?/, "");
       const truncatedVal = displayVal.length > 20 ? displayVal.substring(0, 17) + "..." : displayVal;
       ctx.fillText(`${sns.label}: ${truncatedVal}`, 40, 285);
@@ -227,12 +244,12 @@ export async function generatePassCanvases(
       ctx.textAlign = "left";
 
       // Draw Affiliation
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#94a3b8" : "#475569";
       ctx.fillText(affiliation.toUpperCase(), 40, 80);
 
       // Draw Name
-      ctx.font = "bold 28px sans-serif";
+      ctx.font = `bold 28px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#ffffff" : "#0f172a";
       const displayName = name.length > 15 ? name.substring(0, 14) + "..." : name;
       ctx.fillText(displayName, 40, 115);
@@ -261,12 +278,12 @@ export async function generatePassCanvases(
 
       // Label 1
       ctx.textAlign = "center";
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.fillStyle = sns1.color;
       const displayVal1 = sns1.value.replace(/^https?:\/\/(www\.)?/, "");
       const truncatedVal1 = displayVal1.length > 18 ? displayVal1.substring(0, 15) + "..." : displayVal1;
       ctx.fillText(sns1.label, 145, 340);
-      ctx.font = "11px sans-serif";
+      ctx.font = `11px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#64748b" : "#475569";
       ctx.fillText(truncatedVal1, 145, 356);
 
@@ -287,12 +304,12 @@ export async function generatePassCanvases(
 
       // Label 2
       ctx.textAlign = "center";
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.fillStyle = sns2.color;
       const displayVal2 = sns2.value.replace(/^https?:\/\/(www\.)?/, "");
       const truncatedVal2 = displayVal2.length > 18 ? displayVal2.substring(0, 15) + "..." : displayVal2;
       ctx.fillText(sns2.label, 455, 340);
-      ctx.font = "11px sans-serif";
+      ctx.font = `11px ${FONT_FAMILY}`;
       ctx.fillStyle = theme === "dark" ? "#64748b" : "#475569";
       ctx.fillText(truncatedVal2, 455, 356);
     }
@@ -311,18 +328,23 @@ export async function generatePassCanvases(
 /**
  * Generates event pass card as high resolution PNG and triggers download (legacy helper).
  */
-export const generateAndDownloadPass = (
+export const generateAndDownloadPass = async (
   name: string,
   url: string,
   qrCodeUrl: string,
   theme: "light" | "dark"
 ): Promise<void> => {
+  if (typeof document !== "undefined" && document.fonts) {
+    await document.fonts.ready;
+  }
+
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined") {
       reject(new Error("Cannot run outside browser environment"));
       return;
     }
 
+    const FONT_FAMILY = getFontFamily();
     const canvas = document.createElement("canvas");
     canvas.width = 600;
     canvas.height = 900;
@@ -355,17 +377,17 @@ export const generateAndDownloadPass = (
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = theme === "light" ? "#64748b" : "#94a3b8";
-    ctx.font = "bold 20px sans-serif";
+    ctx.font = `bold 20px ${FONT_FAMILY}`;
     ctx.fillText("EVENT PASS", 300, 80);
 
     // 3. Draw Guest Name
     ctx.fillStyle = theme === "light" ? "#0f172a" : "#ffffff";
-    ctx.font = "bold 44px sans-serif";
+    ctx.font = `bold 44px ${FONT_FAMILY}`;
     ctx.fillText(name, 300, 160);
 
     // Subtitle
     ctx.fillStyle = theme === "light" ? "#94a3b8" : "#64748b";
-    ctx.font = "bold 16px sans-serif";
+    ctx.font = `bold 16px ${FONT_FAMILY}`;
     ctx.fillText("PARTICIPANT", 300, 210);
 
     // 4. Draw QR Code (Async image loading)
@@ -384,13 +406,13 @@ export const generateAndDownloadPass = (
 
       // 5. Draw SNS URL
       ctx.fillStyle = theme === "light" ? "#475569" : "#cbd5e1";
-      ctx.font = "18px sans-serif";
+      ctx.font = `18px ${FONT_FAMILY}`;
       const displayUrl = url.length > 38 ? url.substring(0, 35) + "..." : url;
       ctx.fillText(displayUrl, 300, 675);
 
       // 6. Draw Footer branding
       ctx.fillStyle = theme === "light" ? "#cbd5e1" : "#334155";
-      ctx.font = "14px sans-serif";
+      ctx.font = `14px ${FONT_FAMILY}`;
       ctx.fillText("CarryMyBottle Event System", 300, 850);
 
       try {

@@ -1,4 +1,4 @@
-import { LXD02Printer, PrinterStatus } from "lx-printer/lx-d02";
+import { LXD02Printer, PrinterStatus, PrintData } from "lx-printer/lx-d02";
 
 interface PrintJob {
   id: string;
@@ -162,7 +162,8 @@ class PrinterClient {
           throw new Error("Job cancelled by user");
         }
 
-        await this.printer.print(img, { density: 5 }); // Density defaults to 5 (good contrast)
+        const printData = PrintData.fromImage(img, { algorithm: 'threshold' });
+        await this.printer.print(printData, { density: 5 }); // Density defaults to 5 (good contrast)
         
         if (this.currentJob?.id === job.id) {
           job.resolve();
