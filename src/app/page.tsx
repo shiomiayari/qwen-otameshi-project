@@ -178,10 +178,10 @@ export default function RegisterPage() {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-semibold text-slate-300">
-                  SNS連携 <span className="text-xs text-slate-500">（任意・複数登録可）</span>
+                  SNS連携 <span className="text-xs text-slate-500">（任意・最大4つまで）</span>
                 </label>
                 <span className="text-xs text-slate-500">
-                  ※3つ以上登録すると印刷時に2枚に分かれます
+                  ※3つ以上で2枚印刷されます
                 </span>
               </div>
 
