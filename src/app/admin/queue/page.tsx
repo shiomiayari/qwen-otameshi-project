@@ -12,8 +12,7 @@ import {
 } from "../../utils/storage";
 import { PassCard } from "../../utils/passGenerator";
 import { generateLxCanvases } from "../../utils/lxPassGenerator";
-import { lxPrinterClient, QueueJobInfo } from "../../utils/lxPrinterClient";
-import { PrinterStatus } from "lx-printer/lx-d02";
+import { lxPrinterClient, QueueJobInfo, ManagedPrinterInfo } from "../../utils/lxPrinterClient";
 import { Registration } from "../../utils/types";
 
 export default function AdminQueuePage() {
@@ -31,14 +30,19 @@ export default function AdminQueuePage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "printed">("all");
   const [selectedRegistrant, setSelectedRegistrant] = useState<Registration | null>(null);
   const [previewCards, setPreviewCards] = useState<PassCard[]>([]);
-  const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
-  const isPrinterConnected = printerStatus?.isConnected ?? false;
+  const [printers, setPrinters] = useState<ManagedPrinterInfo[]>([]);
+  const isPrinterConnected = printers.some((p) => p.status.isConnected);
+  const connectedCount = printers.filter((p) => p.status.isConnected).length;
+  const [isConnecting, setIsConnecting] = useState(false);
   const [queueJobs, setQueueJobs] = useState<QueueJobInfo[]>([]);
+
+  // 用紙切れ / 電池低下の通知済みフラグ（台ごと・状態の立ち上がりだけログする）
+  const printerAlertsRef = useRef<Map<string, { paper: boolean; battery: boolean }>>(new Map());
 
   // Monospace Console Logs
   const [logs, setLogs] = useState<string[]>(() => [
     `[${new Date().toLocaleTimeString()}] Admin dashboard initialized.`,
-    `[${new Date().toLocaleTimeString()}] Printer: Offline. Click 'プリンター接続' to pair.`,
+    `[${new Date().toLocaleTimeString()}] Printer: Offline. Click 'プリンターを追加' to pair one or more printers.`,
     `[${new Date().toLocaleTimeString()}] Queue monitoring active. Ready.`,
   ]);
 
@@ -72,15 +76,30 @@ export default function AdminQueuePage() {
     return () => unsubscribe();
   }, [user]);
 
-  // 2.5 Listen to Printer Status
+  // 2.5 Listen to Printer List (multi-printer)
   useEffect(() => {
-    const unsubscribe = lxPrinterClient.subscribe((status) => {
-      setPrinterStatus({ ...status });
-      if (status.isOutOfPaper) {
-        addLog(`[Error] Printer is out of paper! Please replace the roll.`);
+    const unsubscribe = lxPrinterClient.subscribePrinters((list) => {
+      setPrinters(list);
+
+      // 各台の用紙切れ / 電池低下を、状態が立ち上がった瞬間だけログする
+      const alerts = printerAlertsRef.current;
+      const seen = new Set<string>();
+      for (const p of list) {
+        seen.add(p.deviceId);
+        const prev = alerts.get(p.deviceId) ?? { paper: false, battery: false };
+        const paper = !!p.status.isOutOfPaper;
+        const battery = !!p.status.isLowBattery;
+        if (paper && !prev.paper) {
+          addLog(`[Error] ${p.name} is out of paper! Please replace the roll.`);
+        }
+        if (battery && !prev.battery) {
+          addLog(`[Warning] ${p.name} battery is low!`);
+        }
+        alerts.set(p.deviceId, { paper, battery });
       }
-      if (status.isLowBattery) {
-        addLog(`[Warning] Printer battery is low!`);
+      // 切断された台のフラグは破棄
+      for (const key of [...alerts.keys()]) {
+        if (!seen.has(key)) alerts.delete(key);
       }
     });
     return unsubscribe;
@@ -192,21 +211,37 @@ export default function AdminQueuePage() {
     addLog(`[Config] Auto-Print Mode toggled: ${nextVal ? "ENABLED" : "DISABLED"}`);
   };
 
-  const handleTogglePrinterConnection = async () => {
-    if (isPrinterConnected) {
-      lxPrinterClient.disconnect();
-      addLog(`[Config] Printer disconnected manually.`);
-    } else {
-      try {
-        addLog(`[Config] Requesting Bluetooth connection...`);
-        await lxPrinterClient.connect();
-        addLog(`[Config] Printer connected successfully.`);
-      } catch (err: unknown) {
+  // Bluetooth選択ダイアログを開いてプリンターを1台追加する（複数回押せば複数台接続できる）
+  const handleAddPrinter = async () => {
+    if (isConnecting) return;
+    setIsConnecting(true);
+    try {
+      addLog(`[Config] Requesting Bluetooth connection...`);
+      const deviceId = await lxPrinterClient.connect();
+      const added = lxPrinterClient
+        .getPrintersInfo()
+        .find((p) => p.deviceId === deviceId);
+      addLog(`[Config] Printer connected: ${added?.name ?? deviceId}`);
+    } catch (err: unknown) {
+      // ユーザーが選択ダイアログを閉じた場合はエラーではなく正常系として扱う
+      const isUserCancel =
+        err instanceof DOMException &&
+        (err.name === "NotFoundError" || err.name === "AbortError");
+      if (isUserCancel) {
+        addLog(`[Config] プリンターの追加をキャンセルしました。`);
+      } else {
         const errorMsg = err instanceof Error ? err.message : String(err);
         addLog(`[Error] Bluetooth connection failed: ${errorMsg}`);
         console.error("Bluetooth connection failed:", err);
       }
+    } finally {
+      setIsConnecting(false);
     }
+  };
+
+  const handleDisconnectPrinter = (deviceId: string, name: string) => {
+    lxPrinterClient.disconnect(deviceId);
+    addLog(`[Config] Printer disconnected: ${name}`);
   };
 
   const handleClearQueue = async () => {
@@ -337,22 +372,23 @@ export default function AdminQueuePage() {
           >
             ログアウト
           </button>
-          {/* Hardware Connection Mock Button */}
+          {/* Add Printer (複数台を同時接続できる) */}
           <button
-            onClick={handleTogglePrinterConnection}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border ${
-              isPrinterConnected
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+            onClick={handleAddPrinter}
+            disabled={isConnecting}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border disabled:opacity-50 disabled:cursor-not-allowed ${
+              connectedCount > 0
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                : "bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20"
             }`}
           >
-            <span className={`w-2 h-2 rounded-full ${isPrinterConnected ? "bg-emerald-500" : "bg-rose-500 animate-ping"}`} />
-            プリンター: {isPrinterConnected ? "オンライン" : "オフライン"}
-            {printerStatus?.battery !== undefined && isPrinterConnected && (
-              <span className="text-xs font-normal ml-1 border-l border-emerald-500/30 pl-2">
-                🔋 {printerStatus.battery}%
-              </span>
-            )}
+            <span className={`w-2 h-2 rounded-full ${connectedCount > 0 ? "bg-emerald-500" : "bg-rose-500 animate-ping"}`} />
+            {isConnecting
+              ? "接続中..."
+              : connectedCount > 0
+              ? `プリンター: ${connectedCount}台 接続中`
+              : "プリンターを追加"}
+            <span className="text-sm font-normal ml-1 border-l border-current/30 pl-2 opacity-70">＋</span>
           </button>
 
           {/* Auto Print Toggle Switch */}
@@ -547,7 +583,62 @@ export default function AdminQueuePage() {
 
         {/* Right Column: Console & Previews (5/12 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5 min-h-0">
-          
+
+          {/* Connected Printers Panel (multi-printer) */}
+          <div className="bg-slate-900/40 border border-slate-850 rounded-3xl p-5 flex flex-col max-h-[200px] overflow-hidden shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-900 mb-3">
+              <h3 className="text-xs font-bold text-slate-400">接続中プリンター ({connectedCount})</h3>
+              <button
+                onClick={handleAddPrinter}
+                disabled={isConnecting}
+                className="px-2 py-1 bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/20 text-[10px] font-bold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isConnecting ? "接続中..." : "＋ 台を追加"}
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+              {printers.length === 0 ? (
+                <p className="text-[10px] text-slate-500 text-center py-4">
+                  プリンターが接続されていません。「台を追加」でペアリングしてください。
+                </p>
+              ) : (
+                printers.map((p) => (
+                  <div key={p.deviceId} className="flex items-center justify-between bg-slate-950 border border-slate-850 p-2.5 rounded-xl">
+                    <div className="flex items-center gap-2 truncate pr-2 min-w-0">
+                      <span className={`flex-shrink-0 w-2 h-2 rounded-full ${p.status.isConnected ? "bg-emerald-500" : "bg-rose-500"}`} />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white truncate">{p.name}</span>
+                          {p.currentJobId ? (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-bold rounded animate-pulse">
+                              印刷中
+                            </span>
+                          ) : (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 bg-slate-800 text-slate-400 text-[9px] font-bold rounded">
+                              待機
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                          {p.status.battery !== undefined && <span>🔋 {p.status.battery}%</span>}
+                          {p.status.isOutOfPaper && <span className="text-rose-400">用紙切れ</span>}
+                          {p.status.isCharging && <span className="text-emerald-400">充電中</span>}
+                          {p.currentJobLabel && <span className="truncate">{p.currentJobLabel}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDisconnectPrinter(p.deviceId, p.name)}
+                      className="flex-shrink-0 px-2 py-1 bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-900 text-slate-400 hover:text-rose-300 text-[10px] font-bold rounded-lg transition"
+                    >
+                      切断
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* Print Queue Panel */}
           <div className="bg-slate-900/40 border border-slate-850 rounded-3xl p-5 flex flex-col max-h-[180px] overflow-hidden">
             <div className="flex items-center justify-between pb-3 border-b border-slate-900 mb-3">
@@ -570,7 +661,7 @@ export default function AdminQueuePage() {
                     <div className="flex items-center gap-2 truncate pr-2">
                       {job.status === "printing" ? (
                         <span className="flex-shrink-0 px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-bold rounded animate-pulse">
-                          印刷中
+                          {job.printerName ? `印刷中 @ ${job.printerName}` : "印刷中"}
                         </span>
                       ) : (
                         <span className="flex-shrink-0 px-1.5 py-0.5 bg-slate-800 text-slate-400 text-[9px] font-bold rounded">
