@@ -311,7 +311,7 @@ export default function AdminQueuePage() {
   }
 
   return (
-    <main className="lg:h-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col p-6 relative lg:overflow-hidden">
+    <main className="lg:h-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col p-6 relative overflow-x-hidden lg:overflow-hidden">
       {/* Dynamic Glowing Accent Backgrounds */}
       <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[40%] rounded-full bg-violet-600/5 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-600/5 blur-[120px] pointer-events-none" />
